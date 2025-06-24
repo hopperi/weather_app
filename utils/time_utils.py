@@ -1,4 +1,5 @@
 import datetime
+import psycopg2
 
 def get_local_time(timezone_offset):
     utc_now = datetime.datetime.now(datetime.timezone.utc)
