@@ -3,11 +3,11 @@ from psycopg2 import sql
 from dotenv import load_dotenv
 import os
 
-load_dotenv()  # Загружаем переменные окружения из .env
+load_dotenv()
 
 DB_NAME = os.getenv("DB_NAME")
 DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")  # Можно оставить пустым, если пароль не нужен
+DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = os.getenv("DB_PORT")
 
@@ -25,14 +25,13 @@ def connect_db():
                 port=DB_PORT
             )
         else:
-            # Если пароль пустой, подключаемся без него
             conn = psycopg2.connect(
                 dbname=DB_NAME,
                 user=DB_USER,
                 host=DB_HOST,
                 port=DB_PORT
             )
-        print("Подключение к базе данных успешно установлено.")
+        print("Подключение к базе данных установлено")
     except Exception as e:
         print(f"Ошибка подключения к базе данных: {e}")
 
@@ -75,6 +74,15 @@ def fetch_weather_data():
     except Exception as e:
         print(f"Ошибка при извлечении данных: {e}")
         return []
+
+def delete_weather_data_by_id(record_id):
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM weather_data WHERE id = %s;", (record_id,))
+            conn.commit()
+            print(f"Запись с ID {record_id} удалена.")
+    except Exception as e:
+        print(f"Ошибка при удалении записи: {e}")
 
 def close_connection():
     global conn

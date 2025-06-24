@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from geocode.geocode import get_coords
 from weather.weather_api import get_weather
 from utils.time_utils import get_local_time
+from contextlib import asynccontextmanager
 from db import connect_db, insert_weather_data, close_connection
 
 app = FastAPI()
@@ -35,6 +36,10 @@ def api_get_weather(city: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.on_event("shutdown")
-def shutdown():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    connect_db()
+    yield
     close_connection()
+
+app = FastAPI(lifespan=lifespan)
