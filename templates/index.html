@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Прогноз погоды</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <h1>Прогноз погоды</h1>
+    {% if data %}
+        <table border="1">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Город</th>
+                    <th>Температура</th>
+                    <th>Влажность</th>
+                    <th>Описание</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                    <tr>
+                        <td>{{ row[0] }}</td>
+                        <td>{{ row[1] }}</td>
+                        <td>{{ row[2] }}°C</td>
+                        <td>{{ row[3] }}%</td>
+                        <td>{{ row[4] }}</td>
+                        <td><a href="{{ url_for('delete_record', record_id=row[0]) }}">Удалить</a></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>Нет данных.</p>
+    {% endif %}
+</body>
+</html>

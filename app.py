@@ -1,11 +1,12 @@
 from flask import Flask, redirect, url_for
-from db import connect_db, fetch_weather_data, insert_weather_data, delete_weather_data_by_id, close_connection
+from db import connect_db, create_table ,fetch_weather_data, insert_weather_data, delete_weather_data_by_id, close_connection
 from geocode.geocode import get_coords
 from weather.weather_api import get_weather
 from utils.time_utils import get_local_time
 
 app = Flask(__name__)
 connect_db()
+create_table()
 
 @app.route('/')
 def index():
@@ -15,7 +16,7 @@ def index():
         result += f"ID: {row[0]}, Город: {row[1]}, Температура: {row[2]}, Влажность: {row[3]}, Описание: {row[4]}, Время: {row[5]}\n"
     return "<pre>" + result + "</pre>"
 
-# Добавление города через путь: /add/<city>
+# /add/<city>
 @app.route('/add/<city>')
 def add_city(city):
     lat, lon = get_coords(city)
@@ -44,5 +45,5 @@ def delete_record(record_id):
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
     close_connection()
