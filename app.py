@@ -1,4 +1,7 @@
 import logging
+import os
+import redis
+import json
 from flask import Flask, redirect, url_for
 from db import connect_db, create_table ,fetch_weather_data, insert_weather_data, delete_weather_data_by_id, close_connection
 from geocode.geocode import get_coords
@@ -6,6 +9,13 @@ from weather.weather_api import get_weather
 from utils.time_utils import get_local_time
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+
+# Инициализация Redis
+redis_client = redis.Redis(
+    host=os.getenv("REDIS_HOST", "localhost"),
+    port=int(os.getenv("REDIS_PORT", 6379)),
+    db=0
+)
 
 app = Flask(__name__)
 connect_db()
@@ -31,7 +41,16 @@ def add_city(city):
         return f"Город '{city}' не найден"
 
     try:
-        data = get_weather(lat, lon)
+        # Попытка получить данные из Redis
+        cached_data = redis_client.get(city.lower())
+        if cached_data:
+            data = json.loads(cached_data)
+            logging.info(f"Weather data for city '{city}' loaded from Redis cache.")
+        else:
+            data = get_weather(lat, lon)
+            redis_client.setex(city.lower(), 600, json.dumps(data))  # кэш на 10 минут
+            logging.info(f"Weather data for city '{city}' fetched from API and cached in Redis.")
+
         local_time = get_local_time(data["timezone"])
         celsius = round(data["main"]["temp"] - 273.15, 2)
 
