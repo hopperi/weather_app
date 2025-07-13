@@ -2,11 +2,12 @@ import logging
 import os
 import redis
 import json
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, request, session, render_template
 from db import connect_db, create_table ,fetch_weather_data, insert_weather_data, delete_weather_data_by_id, close_connection
 from geocode.geocode import get_coords
 from weather.weather_api import get_weather
 from utils.time_utils import get_local_time
+from werkzeug.security import generate_password_hash, check_password_hash
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
 
@@ -18,12 +19,17 @@ redis_client = redis.Redis(
 )
 
 app = Flask(__name__)
+app.secret_key = os.getenv("SECRET_KEY", "your_secret_key")  # для сессий
+
 connect_db()
 create_table()
 logging.info("Database connected and table ensured.")
 
 @app.route('/')
 def index():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
     data = fetch_weather_data()
     logging.info(f"Fetched {len(data)} records from database.")
     result = ""
@@ -31,7 +37,66 @@ def index():
         result += f"ID: {row[0]}, Город: {row[1]}, Температура: {row[2]}, Влажность: {row[3]}, Описание: {row[4]}, Время: {row[5]}\n"
     return "<pre>" + result + "</pre>"
 
-# /add/<city>
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = generate_password_hash(request.form['password'])
+
+        users = {}
+        if os.path.exists('users.json'):
+            with open('users.json', 'r') as f:
+                users = json.load(f)
+
+        if username in users:
+            return "Пользователь уже существует"
+
+        users[username] = password
+        with open('users.json', 'w') as f:
+            json.dump(users, f)
+
+        return redirect(url_for('login'))
+
+    return '''
+    <h2>Регистрация</h2>
+    <form method="post">
+        Логин: <input type="text" name="username"><br>
+        Пароль: <input type="password" name="password"><br>
+        <input type="submit" value="Зарегистрироваться">
+    </form>
+    '''
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        users = {}
+        if os.path.exists('users.json'):
+            with open('users.json', 'r') as f:
+                users = json.load(f)
+
+        if username in users and check_password_hash(users[username], password):
+            session['username'] = username
+            return redirect(url_for('index'))
+        else:
+            return "Неверный логин или пароль"
+
+    return '''
+    <h2>Вход</h2>
+    <form method="post">
+        Логин: <input type="text" name="username"><br>
+        Пароль: <input type="password" name="password"><br>
+        <input type="submit" value="Войти">
+    </form>
+    '''
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    return redirect(url_for('login'))
+
 @app.route('/add/<city>')
 def add_city(city):
     logging.info(f"Add city request received: {city}")
@@ -41,14 +106,13 @@ def add_city(city):
         return f"Город '{city}' не найден"
 
     try:
-        # Попытка получить данные из Redis
         cached_data = redis_client.get(city.lower())
         if cached_data:
             data = json.loads(cached_data)
             logging.info(f"Weather data for city '{city}' loaded from Redis cache.")
         else:
             data = get_weather(lat, lon)
-            redis_client.setex(city.lower(), 600, json.dumps(data))  # кэш на 10 минут
+            redis_client.setex(city.lower(), 600, json.dumps(data))
             logging.info(f"Weather data for city '{city}' fetched from API and cached in Redis.")
 
         local_time = get_local_time(data["timezone"])
@@ -66,7 +130,6 @@ def add_city(city):
         logging.error(f"Error adding city '{city}': {e}")
         return f"Ошибка: {e}"
 
-# Удаление по ID через путь: /delete/<id>
 @app.route('/delete/<int:record_id>')
 def delete_record(record_id):
     logging.info(f"Delete request for record ID: {record_id}")
